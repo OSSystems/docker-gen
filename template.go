@@ -536,16 +536,34 @@ func GenerateFile(config Config, containers Context) bool {
 	return true
 }
 
-func executeTemplate(templatePath string, containers Context) []byte {
-	tmpl, err := newTemplate(filepath.Base(templatePath)).ParseFiles(templatePath)
-	if err != nil {
-		log.Fatalf("unable to parse template: %s", err)
-	}
+func executeTemplate(fileTemplatePath string, containers Context) []byte {
+	var (
+		templateName string
+		tmpl *template.Template
+		err error
+	)
 
 	buf := new(bytes.Buffer)
-	err = tmpl.ExecuteTemplate(buf, filepath.Base(templatePath), &containers)
-	if err != nil {
-		log.Fatalf("template error: %s\n", err)
+
+	for _, container := range containers {
+		enviromentVarTemplate := container.Env["VIRTUAL_HOST_TEMPLATE"]
+		if enviromentVarTemplate != "" {
+			templateName = container.ID
+			tmpl, err = newTemplate(templateName).Parse(enviromentVarTemplate)
+		} else {
+			templateName = filepath.Base(fileTemplatePath)
+			tmpl, err = newTemplate(templateName).ParseFiles(fileTemplatePath)
+		}
+		if err != nil {
+			log.Fatalf("unable to parse template: %s", err)
+		}
+
+		templateContainers := Context{}
+		templateContainers = append(templateContainers, container)
+		err = tmpl.ExecuteTemplate(buf, templateName, &templateContainers)
+		if err != nil {
+			log.Fatalf("template error: %s\n", err)
+		}
 	}
 	return buf.Bytes()
 }
